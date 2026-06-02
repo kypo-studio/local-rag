@@ -24,8 +24,18 @@ const NB_CHUNKS = 4;        // top-k : nb de chunks injectes dans le prompt
 const MAX_TOKENS = 400;     // garde-fou : plafonne la longueur (et le cout) de la reponse
 const MAX_LONGUEUR_QUESTION = 500; // garde-fou : rejette les messages trop longs
 
+const RATE_LIMIT_MAX = 20;        // garde-fou : messages max par IP...
+const RATE_LIMIT_FENETRE = 600;   // ...sur cette fenetre (600 s = 10 min)
+const CAP_QUOTIDIEN = 500;        // garde-fou : requetes max par jour (tous visiteurs)
+const DOSSIER_DATA = __DIR__ . "/data"; // compteurs des garde-fous (fichiers JSON)
+
 // La cle est lue dans l'environnement du serveur (jamais en dur ici).
+// Repli pour l'hebergement mutualise : un fichier secrets.php (non versionne)
+// qui fait simplement `return "ta_cle";`.
 $cle_mistral = getenv("MISTRAL_API_KEY");
+if (!$cle_mistral && file_exists(__DIR__ . "/secrets.php")) {
+    $cle_mistral = require __DIR__ . "/secrets.php";
+}
 
 // Le system prompt : il definit le ROLE du bot. Defensif : interdit d'inventer.
 const SYSTEM_PROMPT = <<<PROMPT
@@ -70,6 +80,86 @@ if ($question === "") {
 if (mb_strlen($question) > MAX_LONGUEUR_QUESTION) {
     http_response_code(400);
     echo json_encode(["error" => "Question trop longue."]);
+    exit;
+}
+
+
+// =====================================================================
+// 1bis. GARDE-FOUS — rate limiting par IP + cap quotidien global
+// Verifies AVANT tout appel API (donc avant tout cout). L'etat est stocke
+// dans des fichiers JSON, adapte a un hebergement mutualise sans base de donnees.
+// =====================================================================
+
+if (!is_dir(DOSSIER_DATA)) {
+    @mkdir(DOSSIER_DATA, 0755, true);
+}
+
+/** IP du visiteur (hashee ensuite, pour ne pas stocker d'IP en clair — RGPD). */
+function client_ip(): string {
+    return $_SERVER["REMOTE_ADDR"] ?? "inconnu";
+}
+
+function lire_json(string $fichier): array {
+    if (!file_exists($fichier)) return [];
+    return json_decode(file_get_contents($fichier), true) ?: [];
+}
+
+function ecrire_json(string $fichier, array $donnees): void {
+    file_put_contents($fichier, json_encode($donnees), LOCK_EX);
+}
+
+/** Limite le nombre de messages par IP sur une fenetre glissante. */
+function rate_limit_ok(): bool {
+    $fichier = DOSSIER_DATA . "/ratelimit.json";
+    $maintenant = time();
+    $hash_ip = hash("sha256", client_ip());
+    $data = lire_json($fichier);
+
+    // Purge des horodatages expires (toutes IP) -> le fichier reste compact.
+    foreach ($data as $h => $stamps) {
+        $stamps = array_filter($stamps, fn($t) => $t > $maintenant - RATE_LIMIT_FENETRE);
+        if ($stamps) { $data[$h] = array_values($stamps); } else { unset($data[$h]); }
+    }
+
+    $stamps_ip = $data[$hash_ip] ?? [];
+    if (count($stamps_ip) >= RATE_LIMIT_MAX) {
+        return false;
+    }
+    $stamps_ip[] = $maintenant;
+    $data[$hash_ip] = $stamps_ip;
+    ecrire_json($fichier, $data);
+    return true;
+}
+
+/** Compteur global de requetes, remis a zero chaque jour. */
+function cap_quotidien_ok(): bool {
+    $fichier = DOSSIER_DATA . "/daily.json";
+    $aujourdhui = date("Y-m-d");
+    $data = lire_json($fichier);
+    if (($data["date"] ?? "") !== $aujourdhui) {
+        $data = ["date" => $aujourdhui, "count" => 0];
+    }
+    if ($data["count"] >= CAP_QUOTIDIEN) {
+        return false;
+    }
+    $data["count"]++;
+    ecrire_json($fichier, $data);
+    return true;
+}
+
+if (!rate_limit_ok()) {
+    http_response_code(429);
+    echo json_encode([
+        "answer" => "Tu m'as envoye beaucoup de messages d'un coup ! Patiente quelques minutes avant de reessayer."
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if (!cap_quotidien_ok()) {
+    http_response_code(503);
+    echo json_encode([
+        "answer" => "L'assistant a atteint sa limite de messages pour aujourd'hui. Reviens demain, ou ecris directement a Pol : contact@kypolab.com."
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 

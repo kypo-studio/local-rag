@@ -1,0 +1,10 @@
+# Empeche l'acces web direct aux compteurs (ratelimit.json, daily.json).
+# Apache 2.4 :
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+# Apache 2.2 (repli) :
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

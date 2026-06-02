@@ -1,5 +1,9 @@
 # Secrets — NE JAMAIS commiter de cle API
 .env
+secrets.php
+
+# Compteurs runtime des garde-fous (generes par chat.php)
+data/*.json
 
 # Python
 __pycache__/
