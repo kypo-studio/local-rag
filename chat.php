@@ -104,7 +104,6 @@ function embed_question(string $question, string $cle): array {
         ]),
     ]);
     $reponse = curl_exec($ch);
-    curl_close($ch);
     return json_decode($reponse, true)["data"][0]["embedding"];
 }
 
@@ -150,7 +149,6 @@ curl_setopt_array($ch, [
     ]),
 ]);
 $reponse_brute = curl_exec($ch);
-curl_close($ch);
 
 $reponse = json_decode($reponse_brute, true);
 $texte_reponse = $reponse["choices"][0]["message"]["content"]
