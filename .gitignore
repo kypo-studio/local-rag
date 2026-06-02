@@ -1,53 +1,12 @@
+# Secrets — NE JAMAIS commiter de cle API
+.env
+
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-dist/
-*.egg-info/
-*.egg
-.eggs/
-
-# Virtualenvs
 .venv/
 venv/
-env/
+.ipynb_checkpoints/
 
-# uv
-.uv/
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# Vector store
-.chroma/
-chroma_db/
-
-# User data (keep sample/)
-data/*
-!data/sample/
-!data/.gitkeep
-
-# HuggingFace cache
-.cache/
-models/
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# OS
 .DS_Store
-
-# Logs
-*.log

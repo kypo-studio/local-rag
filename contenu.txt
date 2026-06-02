@@ -1,0 +1,88 @@
+# =====================================================================
+# contenu.txt — base de connaissances du chatbot RAG de Pol QUIMERC'H
+# =====================================================================
+#
+# REGLES :
+#  - Un chunk = une idee autonome = un paragraphe, separes par UNE LIGNE VIDE.
+#  - Premiere personne ("je"), chaque chunk se comprend TOUT SEUL.
+#  - Les lignes commencant par # sont des commentaires ignores par le script.
+#
+# ---------------------------------------------------------------------
+# 1. IDENTITE / PRESENTATION GENERALE
+# ---------------------------------------------------------------------
+
+Je m'appelle Pol Quimerc'h, j'ai 22 ans, et je suis en derniere annee de Master "Chef de Projet Expert en Intelligence Artificielle" a l'EPSI de Rennes, avec une fin de formation prevue en septembre 2026. Je me specialise en data science et en intelligence artificielle.
+
+Pour moi, l'intelligence artificielle est un domaine ou la performance algorithmique se met au service de problemes reels : ameliorer la precision d'une analyse, ou anticiper un besoin avant qu'il ne devienne critique. C'est cette dimension concrete et utile de l'IA qui me motive.
+
+# ---------------------------------------------------------------------
+# 2. POSTE RECHERCHE
+# ---------------------------------------------------------------------
+
+Je recherche un poste de data scientist ou d'ingenieur IA, en CDI, disponible a partir d'octobre 2026. Je suis mobile sur Lyon et ses alentours, et ouvert au teletravail.
+
+# ---------------------------------------------------------------------
+# 3. FORMATION / PARCOURS
+# ---------------------------------------------------------------------
+
+Je prepare actuellement un Master "Chef de Projet Expert en Intelligence Artificielle" a l'EPSI de Rennes (2024-2026), en alternance.
+
+Avant mon master, j'ai obtenu un Bachelor "Concepteur Developpeur d'Applications" au CESI de Guipavas (2023-2024). Cette formation m'a donne des bases solides en developpement et en conception d'applications.
+
+J'ai commence mon parcours en informatique par un BTS Services Informatiques aux Organisations (SIO), obtenu au Lycee superieur Charles de Foucauld a Brest (2021-2023).
+
+# ---------------------------------------------------------------------
+# 4. COMPETENCES TECHNIQUES
+# ---------------------------------------------------------------------
+
+En intelligence artificielle et data science, je maitrise le machine learning et l'apprentissage automatique, le deep learning, les reseaux de neurones recurrents de type LSTM, le traitement du langage naturel (NLP) et les modeles de langage (LLM).
+
+J'ai une specialite en traitement d'images satellites : reconnaissance d'images (notamment Sentinel-2), calcul d'indicateurs, jointures geometriques et analyse spatiale.
+
+Cote MLOps et industrialisation, je sais conteneuriser avec Docker, construire des pipelines CI/CD sur GitLab, suivre mes experiences et mes modeles avec MLflow, monitorer avec Prometheus et exposer un modele via une API documentee (Swagger UI).
+
+Cote programmation, je code principalement en Python et en SQL, et j'ai aussi des competences en Java, HTML et CSS. Au quotidien j'utilise des bibliotheques comme pandas, scikit-learn, PyTorch et matplotlib.
+
+# ---------------------------------------------------------------------
+# 5. PROJETS  (1 chunk par projet)
+# ---------------------------------------------------------------------
+
+J'ai realise un projet de prediction de la consommation electrique, concu de bout en bout (end-to-end). Je l'ai industrialise avec une stack MLOps complete : conteneurisation avec Docker, pipeline CI/CD sur GitLab, suivi des experiences et des modeles avec MLflow, monitoring avec Prometheus, et exposition du modele de prediction via une API documentee avec Swagger UI.
+
+Dans le cadre de mon alternance chez Eureden, j'ai mene un projet d'analyse et de traitement d'images satellites Sentinel-2 : reconnaissance d'images, calcul d'indicateurs, jointures geometriques et analyse spatiale, afin d'en extraire des informations exploitables.
+
+Toujours chez Eureden, j'ai travaille sur la refonte de modeles predictifs existants, en les ameliorant et en les optimisant. J'ai aussi concu des pipelines data end-to-end : collecte de datasets, transformation ETL, developpement de modeles de machine learning et deploiement en production.
+
+Je developpe egalement un chatbot RAG (Retrieval-Augmented Generation) integre a mon site personnel, capable de repondre aux visiteurs a propos de mon parcours. Il s'appuie sur du traitement du langage naturel (NLP) : un systeme d'embeddings (Voyage AI), une recherche par similarite cosinus pour retrouver l'information pertinente, et le modele Claude d'Anthropic pour generer les reponses.
+
+# ---------------------------------------------------------------------
+# 6. EXPERIENCES / STAGES
+# ---------------------------------------------------------------------
+
+Depuis 2024, je suis en alternance chez Eureden, a Landerneau, dans le cadre de mon Master en intelligence artificielle. J'y travaille sur des projets de data science et de machine learning de bout en bout : modeles predictifs, traitement d'images satellites et pipelines data en production.
+
+De 2023 a 2024, j'ai effectue une alternance de developpeur full stack chez Eureden, a Landerneau. Ma mission principale etait d'optimiser des interfaces web et de corriger des bugs pour ameliorer l'experience utilisateur et la stabilite de l'application.
+
+# ---------------------------------------------------------------------
+# 7. FACON DE TRAVAILLER / SOFT SKILLS
+# ---------------------------------------------------------------------
+
+Au travail, je suis autonome, curieux et rigoureux, et je suis un bon communicant. J'ai surtout une forte envie d'apprendre, ce qui me permet de monter rapidement en competence sur de nouveaux sujets.
+
+# ---------------------------------------------------------------------
+# 8. LANGUES
+# ---------------------------------------------------------------------
+
+Je parle francais (ma langue maternelle) et anglais a un niveau professionnel.
+
+# ---------------------------------------------------------------------
+# 9. CENTRES D'INTERET
+# ---------------------------------------------------------------------
+
+En dehors du travail, je pratique la guitare, l'escalade, le parkour, la cuisine et la photo.
+
+# ---------------------------------------------------------------------
+# 10. CONTACT
+# ---------------------------------------------------------------------
+
+Pour me contacter, le plus simple est de m'ecrire a contact@kypolab.com. On peut aussi me retrouver sur LinkedIn (https://www.linkedin.com/in/pol-quimerch/) et sur GitHub (https://github.com/kypo-studio).
