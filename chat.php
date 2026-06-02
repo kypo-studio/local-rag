@@ -3,11 +3,12 @@
  * chat.php — Proxy RAG (Phase 2), a deposer sur Infomaniak.
  *
  * Role : reçoit la question d'un visiteur (envoyee par le widget JS),
- *        fait le Retrieval (embedding Voyage + cosinus sur embeddings.json),
- *        construit le prompt et appelle Claude Haiku, puis renvoie la reponse.
+ *        fait le Retrieval (embedding Mistral + cosinus sur embeddings.json),
+ *        construit le prompt et appelle un modele de chat Mistral, puis
+ *        renvoie la reponse.
  *
- * SECURITE : les cles API vivent UNIQUEMENT ici, cote serveur, jamais dans le
- * JavaScript. Elles sont lues depuis les variables d'environnement du serveur.
+ * SECURITE : la cle API vit UNIQUEMENT ici, cote serveur, jamais dans le
+ * JavaScript. Elle est lue depuis la variable d'environnement du serveur.
  */
 
 // =====================================================================
@@ -15,17 +16,16 @@
 // =====================================================================
 
 // MEME modele d'embedding qu'a l'indexation Python (regle d'or du RAG).
-const MODELE_EMBEDDING = "voyage-3.5-lite";
-// Modele de generation : Haiku, le moins cher.
-const MODELE_GENERATION = "claude-haiku-4-5";
+const MODELE_EMBEDDING = "mistral-embed";
+// Modele de generation (gratuit sur l'offre Mistral).
+const MODELE_GENERATION = "mistral-small-latest";
 
 const NB_CHUNKS = 4;        // top-k : nb de chunks injectes dans le prompt
 const MAX_TOKENS = 400;     // garde-fou : plafonne la longueur (et le cout) de la reponse
 const MAX_LONGUEUR_QUESTION = 500; // garde-fou : rejette les messages trop longs
 
-// Les cles sont lues dans l'environnement du serveur (jamais en dur ici).
-$cle_voyage = getenv("VOYAGE_API_KEY");
-$cle_anthropic = getenv("ANTHROPIC_API_KEY");
+// La cle est lue dans l'environnement du serveur (jamais en dur ici).
+$cle_mistral = getenv("MISTRAL_API_KEY");
 
 // Le system prompt : il definit le ROLE du bot. Defensif : interdit d'inventer.
 const SYSTEM_PROMPT = <<<PROMPT
@@ -52,9 +52,9 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     exit;
 }
 
-if (!$cle_voyage || !$cle_anthropic) {
+if (!$cle_mistral) {
     http_response_code(500);
-    echo json_encode(["error" => "Cles API non configurees sur le serveur."]);
+    echo json_encode(["error" => "Cle API non configuree sur le serveur."]);
     exit;
 }
 
@@ -89,9 +89,9 @@ function cosinus(array $a, array $b): float {
     return $produit / (sqrt($norme_a) * sqrt($norme_b));
 }
 
-/** Appelle l'API Voyage pour vectoriser la question (input_type=query). */
+/** Appelle l'API Mistral pour vectoriser la question. */
 function embed_question(string $question, string $cle): array {
-    $ch = curl_init("https://api.voyageai.com/v1/embeddings");
+    $ch = curl_init("https://api.mistral.ai/v1/embeddings");
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [
@@ -99,9 +99,8 @@ function embed_question(string $question, string $cle): array {
             "Content-Type: application/json",
         ],
         CURLOPT_POSTFIELDS => json_encode([
-            "input" => [$question],
             "model" => MODELE_EMBEDDING,
-            "input_type" => "query",
+            "input" => [$question],
         ]),
     ]);
     $reponse = curl_exec($ch);
@@ -110,7 +109,7 @@ function embed_question(string $question, string $cle): array {
 }
 
 // On vectorise la question.
-$vecteur_question = embed_question($question, $cle_voyage);
+$vecteur_question = embed_question($question, $cle_mistral);
 
 // On charge l'index pre-calcule et on score chaque chunk.
 $index = json_decode(file_get_contents(__DIR__ . "/embeddings.json"), true);
@@ -129,24 +128,23 @@ foreach ($meilleurs as $i => $score) {
 
 
 // =====================================================================
-// 3. GENERATION — appel a Claude Haiku
+// 3. GENERATION — appel au modele de chat Mistral
 // =====================================================================
 
 $message_utilisateur = "CONTEXTE :\n$contexte\n\nQUESTION DU VISITEUR : $question";
 
-$ch = curl_init("https://api.anthropic.com/v1/messages");
+$ch = curl_init("https://api.mistral.ai/v1/chat/completions");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => [
-        "x-api-key: $cle_anthropic",
-        "anthropic-version: 2023-06-01",
+        "Authorization: Bearer $cle_mistral",
         "Content-Type: application/json",
     ],
     CURLOPT_POSTFIELDS => json_encode([
         "model" => MODELE_GENERATION,
         "max_tokens" => MAX_TOKENS,
-        "system" => SYSTEM_PROMPT,
         "messages" => [
+            ["role" => "system", "content" => SYSTEM_PROMPT],
             ["role" => "user", "content" => $message_utilisateur],
         ],
     ]),
@@ -155,7 +153,8 @@ $reponse_brute = curl_exec($ch);
 curl_close($ch);
 
 $reponse = json_decode($reponse_brute, true);
-$texte_reponse = $reponse["content"][0]["text"] ?? "Desole, une erreur est survenue.";
+$texte_reponse = $reponse["choices"][0]["message"]["content"]
+    ?? "Desole, une erreur est survenue.";
 
 
 // =====================================================================

@@ -22,8 +22,10 @@ bloqué en m'expliquant la cause du problème.
   via un module Code Divi ou le footer du thème
 - **Back-end** : un script **PHP** sur Infomaniak qui fait l'intermédiaire (proxy)
   → la clé API n'est JAMAIS exposée au navigateur
-- **Modèle de génération** : **Anthropic Claude Haiku** (le moins cher, suffisant pour ce cas)
-- **Modèle d'embedding** : **Voyage AI** (Anthropic ne fournit pas d'embeddings)
+- **Modèle de génération** : **Mistral** (`mistral-small-latest`) — offre gratuite, sans CB
+- **Modèle d'embedding** : **Mistral** (`mistral-embed`) — même fournisseur, une seule clé
+- *(Choix initial Voyage AI + Claude Haiku abandonné : Haiku nécessite des crédits
+  prépayés, et Voyage en gratuit est limité à 3 req/min. Mistral fait les deux gratuitement.)*
 
 ## Architecture RAG — vue d'ensemble
 

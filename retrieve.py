@@ -13,14 +13,16 @@ Usage :
 
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
+import requests
 from dotenv import load_dotenv
-import voyageai
 
 # Le MEME modele qu'a l'indexation (regle d'or du RAG).
-MODELE_EMBEDDING = "voyage-3.5-lite"
+MODELE_EMBEDDING = "mistral-embed"
+URL_EMBEDDINGS = "https://api.mistral.ai/v1/embeddings"
 NB_RESULTATS = 4  # combien de chunks on garde (le "top-k")
 
 
@@ -40,6 +42,9 @@ def cosinus(a: list[float], b: list[float]) -> float:
 
 def main() -> None:
     load_dotenv()
+    cle = os.environ.get("MISTRAL_API_KEY")
+    if not cle:
+        raise SystemExit("Cle MISTRAL_API_KEY introuvable. Verifie ton .env.")
 
     # La question vient de la ligne de commande, sinon une question par defaut.
     question = " ".join(sys.argv[1:]) or "Pol sait-il faire du deep learning ?"
@@ -47,11 +52,17 @@ def main() -> None:
     # On recharge l'index qu'on a genere a l'etape precedente.
     donnees = json.loads(Path("embeddings.json").read_text(encoding="utf-8"))
 
-    # On vectorise la QUESTION. Note : input_type="query" (et non "document").
-    client = voyageai.Client()
-    vecteur_question = client.embed(
-        [question], model=MODELE_EMBEDDING, input_type="query"
-    ).embeddings[0]
+    # On vectorise la QUESTION avec le meme modele que l'index.
+    reponse = requests.post(
+        URL_EMBEDDINGS,
+        headers={
+            "Authorization": f"Bearer {cle}",
+            "Content-Type": "application/json",
+        },
+        json={"model": MODELE_EMBEDDING, "input": [question]},
+    )
+    reponse.raise_for_status()
+    vecteur_question = reponse.json()["data"][0]["embedding"]
 
     # On calcule la proximite de la question avec CHAQUE chunk.
     scores = [
