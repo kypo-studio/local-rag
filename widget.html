@@ -278,10 +278,28 @@
         // On envoie la question ET l'historique des echanges precedents.
         body: JSON.stringify({ question, history: historique }),
       });
-      const data = await res.json();
-      typing.remove();
-      const reponse = data.answer || "Désolé, une erreur est survenue. Réessayez plus tard.";
-      addMessage("bot", reponse);
+      const ct = res.headers.get("content-type") || "";
+      let reponse = "";
+      if (ct.includes("application/json")) {
+        // Reponse NON streamee : garde-fou (429/503) ou erreur -> format JSON.
+        const data = await res.json();
+        typing.remove();
+        reponse = data.answer || "Désolé, une erreur est survenue. Réessayez plus tard.";
+        addMessage("bot", reponse);
+      } else {
+        // Reponse STREAMEE : on lit le flux et on affiche au fil de l'eau.
+        typing.remove();
+        const div = addMessage("bot", "");
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          reponse += decoder.decode(value, { stream: true });
+          div.innerHTML = format(reponse);          // re-rendu progressif (liens, sauts de ligne)
+          messages.scrollTop = messages.scrollHeight;
+        }
+      }
       // On enregistre l'echange dans l'historique, puis on tronque (fenetre glissante).
       historique.push({ role: "user", content: question });
       historique.push({ role: "assistant", content: reponse });

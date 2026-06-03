@@ -475,28 +475,54 @@ foreach ($historique as $msg) {
 }
 $messages[] = ["role" => "user", "content" => $message_utilisateur];
 
+// --- STREAMING : on bascule la reponse HTTP en flux texte (plus de JSON ici).
+// On desactive tout buffering pour que les fragments partent immediatement.
+header("Content-Type: text/plain; charset=utf-8");
+header("X-Accel-Buffering: no"); // demande a nginx de ne pas bufferiser
+header("Cache-Control: no-cache");
+while (ob_get_level() > 0) { ob_end_flush(); }
+
+$buffer = "";          // accumule les fragments SSE (gere les lignes coupees)
+$texte_reponse = "";   // reponse complete (pour log/diagnostic eventuel)
+
 $ch = curl_init("https://api.mistral.ai/v1/chat/completions");
 curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => [
         "Authorization: Bearer $cle_mistral",
         "Content-Type: application/json",
+        "Accept: text/event-stream",
     ],
     CURLOPT_POSTFIELDS => json_encode([
         "model" => MODELE_GENERATION,
         "max_tokens" => MAX_TOKENS,
         "messages" => $messages,
+        "stream" => true, // <-- Mistral renvoie un flux SSE token par token
     ]),
+    // Appelee a CHAQUE fragment reseau recu depuis Mistral.
+    CURLOPT_WRITEFUNCTION => function ($ch, $fragment) use (&$buffer, &$texte_reponse) {
+        $buffer .= $fragment;
+        // On traite ligne complete par ligne complete (les fragments peuvent
+        // couper une ligne SSE en deux -> on garde le reste dans $buffer).
+        while (($pos = strpos($buffer, "\n")) !== false) {
+            $ligne = trim(substr($buffer, 0, $pos));
+            $buffer = substr($buffer, $pos + 1);
+            if ($ligne === "" || strncmp($ligne, "data:", 5) !== 0) continue;
+            $charge = trim(substr($ligne, 5));
+            if ($charge === "[DONE]") continue;
+            $j = json_decode($charge, true);
+            $delta = $j["choices"][0]["delta"]["content"] ?? "";
+            if ($delta !== "") {
+                echo $delta;
+                @ob_flush(); @flush(); // pousse le texte vers le navigateur tout de suite
+                $texte_reponse .= $delta;
+            }
+        }
+        return strlen($fragment); // obligatoire : indique a cURL qu'on a tout consomme
+    },
 ]);
-$reponse_brute = curl_exec($ch);
+curl_exec($ch);
 
-$reponse = json_decode($reponse_brute, true);
-$texte_reponse = $reponse["choices"][0]["message"]["content"]
-    ?? "Desole, une erreur est survenue.";
-
-
-// =====================================================================
-// 4. SORTIE — on renvoie la reponse au widget
-// =====================================================================
-
-echo json_encode(["answer" => $texte_reponse], JSON_UNESCAPED_UNICODE);
+// Repli : si rien n'a ete streame (erreur amont), on envoie un message minimal.
+if ($texte_reponse === "") {
+    echo "Desole, une erreur est survenue.";
+}
