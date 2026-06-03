@@ -74,19 +74,20 @@ sans aucun sens. La dimension des vecteurs doit aussi correspondre.
    le mettre en cache réduit son coût jusqu'à ~90 %.
 
 ## Sécurité
-- La clé API Anthropic et la clé Voyage vivent UNIQUEMENT côté serveur (PHP),
-  jamais dans le JavaScript ni dans le HTML.
+- La clé Mistral vit UNIQUEMENT côté serveur (PHP, via `secrets.php` ou variable
+  d'environnement), jamais dans le JavaScript ni dans le HTML.
 - Le widget ne parle qu'au script PHP, jamais directement aux API tierces.
 
 ## État d'avancement
 - [x] Choix de l'architecture (option B : indexation Python, serveur PHP léger)
-- [x] Choix des modèles (Haiku + Voyage)
-- [] Phase 1 : rédaction des chunks (`contenu.txt`)
-- [ ] Phase 1 : script Python d'indexation → `embeddings.json`
-- [ ] Phase 2 : script PHP (recherche cosinus + appel Haiku)
-- [ ] Front-end : widget chatbot Liquid Glass
-- [ ] Intégration dans Divi
-- [ ] Mise en place des garde-fous
+- [x] Choix des modèles (Mistral : `mistral-embed` + `mistral-small-latest`)
+- [x] Phase 1 : rédaction des chunks (`contenu.txt`) — 20 chunks
+- [x] Phase 1 : script Python d'indexation → `embeddings.json` (`index.py`)
+- [x] Phase 2 : script PHP (recherche cosinus + appel Mistral) — `chat.php`, testé
+- [x] Front-end : widget chatbot Liquid Glass (`widget.html`)
+- [x] Garde-fous serveur : rate limiting par IP + cap quotidien (testés)
+- [ ] Intégration dans Divi + upload sur Infomaniak (voir `DEPLOY.md`)
 
 ## Prochaine étape
-Rédiger les chunks dans `contenu.txt`, puis écrire le script Python d'indexation.
+Suivre `DEPLOY.md` : uploader `chat.php` + `embeddings.json` sur Infomaniak,
+créer `secrets.php` avec la clé, et coller le widget dans le pied de page Divi.
