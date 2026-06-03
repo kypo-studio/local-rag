@@ -323,8 +323,58 @@ function embed_question(string $question, string $cle): array {
     return json_decode($reponse, true)["data"][0]["embedding"];
 }
 
-// On vectorise la question.
-$vecteur_question = embed_question($question, $cle_mistral);
+/**
+ * Reformule une question de suivi en question AUTONOME, a l'aide de l'historique.
+ * Ex : "Quelles technos dessus ?" + historique Sentinel-2 -> "Quelles technologies
+ * as-tu utilisees sur le projet Sentinel-2 ?". Cette version sert UNIQUEMENT a la
+ * recherche (embedding + BM25), pas a la generation. En cas d'echec, on renvoie la
+ * question d'origine (jamais de plantage).
+ */
+function reformuler_question(string $question, array $historique, string $cle): string {
+    // Resume compact de l'historique pour le prompt de reformulation.
+    $fil = "";
+    foreach ($historique as $msg) {
+        $qui = $msg["role"] === "user" ? "Visiteur" : "Assistant";
+        $fil .= "$qui : " . $msg["content"] . "\n";
+    }
+
+    $prompt = "Voici une conversation, puis une nouvelle question du visiteur.\n"
+        . "Reecris cette derniere question en une SEULE phrase autonome et complete,\n"
+        . "en remplaçant les pronoms/references (ça, dessus, celui-la...) par leur sens\n"
+        . "explicite d'apres la conversation. Reponds UNIQUEMENT par la question reecrite.\n\n"
+        . "CONVERSATION :\n$fil\nNOUVELLE QUESTION : $question";
+
+    $ch = curl_init("https://api.mistral.ai/v1/chat/completions");
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: Bearer $cle",
+            "Content-Type: application/json",
+        ],
+        CURLOPT_POSTFIELDS => json_encode([
+            "model" => MODELE_GENERATION,
+            "max_tokens" => 60, // une phrase courte suffit -> cout minimal
+            "temperature" => 0, // deterministe : on veut une reformulation fidele
+            "messages" => [["role" => "user", "content" => $prompt]],
+        ]),
+    ]);
+    $reponse = json_decode(curl_exec($ch), true);
+    $reecrite = trim($reponse["choices"][0]["message"]["content"] ?? "");
+    // Repli de securite : si vide ou anormalement long, on garde l'original.
+    return ($reecrite !== "" && mb_strlen($reecrite) <= MAX_LONGUEUR_QUESTION)
+        ? $reecrite : $question;
+}
+
+// --- Query rewriting : si la conversation a un historique, la question peut etre
+// une question de suivi ("et dessus ?"). On la reformule en question autonome
+// AVANT de chercher, pour que le retrieval dispose des bons mots-cles.
+// Sans historique, la question est deja autonome -> on saute l'etape (economie).
+$question_recherche = $historique
+    ? reformuler_question($question, $historique, $cle_mistral)
+    : $question;
+
+// On vectorise la question de RECHERCHE (reformulee le cas echeant).
+$vecteur_question = embed_question($question_recherche, $cle_mistral);
 
 // On charge l'index pre-calcule.
 $index = json_decode(file_get_contents(__DIR__ . "/embeddings.json"), true);
@@ -336,7 +386,7 @@ foreach ($index as $i => $entree_index) {
     $scores_cos[$i] = cosinus($vecteur_question, $entree_index["embedding"]);
 }
 // 2) Mots-cles : BM25 question <-> chunk (capte les TERMES EXACTS, noms propres).
-$scores_bm25 = bm25_scores(tokeniser($question), $index);
+$scores_bm25 = bm25_scores(tokeniser($question_recherche), $index);
 
 // ...puis on FUSIONNE les deux classements (Reciprocal Rank Fusion).
 $scores = rrf_fusion($scores_cos, $scores_bm25);
