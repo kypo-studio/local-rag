@@ -2,8 +2,8 @@
   EXTRAIT PRET A COLLER DANS DIVI
   (Divi -> Options du theme -> Integration -> Code du corps "body")
 
-  AVANT DE COLLER : remplace l'URL dans CONFIG.endpoint (plus bas dans le <script>)
-  par l'adresse reelle de ton chat.php en production.
+  L'URL de production (https://kypolab.com/chatbot/chat.php) est deja configuree
+  dans CONFIG.endpoint (plus bas dans le <script>). Rien a modifier : copie tout.
 
   C'est la meme chose que widget.html, mais SANS <!DOCTYPE>/<html>/<head>/<body>
   ni le fond de page de demo (Divi fournit deja la page).
@@ -123,8 +123,8 @@
 
 <script>
   const CONFIG = {
-    // ⬇️ REMPLACE par l'URL reelle de ton chat.php en production :
-    endpoint: "https://TON-DOMAINE/chatbot/chat.php",
+    // Endpoint de production (deja configure) :
+    endpoint: "https://kypolab.com/chatbot/chat.php",
     greeting: "Bonjour ! 👋 Je suis l'assistant de Pol. Posez-moi vos questions sur son parcours, ses projets ou le poste qu'il recherche.",
   };
 
