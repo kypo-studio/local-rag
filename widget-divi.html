@@ -1,78 +1,60 @@
 <!--
-  EXTRAIT PRET A COLLER DANS DIVI
-  (Divi -> Options du theme -> Integration -> Code du corps "body")
+  EXTRAIT PRET A COLLER DANS DIVI (module "Code" du pied de page, ou onglet Integration body).
 
-  L'URL de production (https://kypolab.com/chatbot/chat.php) est deja configuree
-  dans CONFIG.endpoint (plus bas dans le <script>). Rien a modifier : copie tout.
+  URL de production deja configuree dans CONFIG.endpoint (plus bas). Copie tout.
 
-  Style "Liquid Glass" : flou (backdrop-filter) + distorsion SVG (refraction)
-  + reflets internes. Le filtre porte un ID unique (#chat-glass-distortion) pour
-  ne pas entrer en conflit avec ton effet existant (#de-glass-distortion).
+  Style "Liquid Glass" : panneau en verre (flou + distorsion SVG + reflets).
+  Filtre SVG d'ID unique (#chat-glass-distortion) -> aucun conflit avec
+  ton effet existant (#de-glass-distortion).
 -->
 
 <style>
   :root {
     --glass-tint: rgba(255, 255, 255, 0.30);
-    --glass-border: rgba(255, 255, 255, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.40);
     --blur: 8px;
-    --accent: #6a5cff;
-    --accent-grad: linear-gradient(135deg, #6a82fb, #8a5cff);
+    --accent: #960d41;
+    --accent-grad: linear-gradient(135deg, #c4185c, #960d41);
     --text: #1d1d2b;
     --radius: 24px;
-    --shadow: 0 8px 32px rgba(31, 38, 80, 0.28);
+    --shadow: 0 8px 32px rgba(60, 5, 28, 0.32);
   }
 
-  /* --- Socle commun "liquid glass" pour la bulle et le panneau --- */
+  /* Propietes communes bulle + panneau */
   #chat-bubble, #chat-panel {
     position: fixed;
     right: 24px;
     bottom: 24px;
-    overflow: hidden;                 /* rogne les couches de verre au bord */
+    z-index: 2147483646;              /* au-dessus de (presque) tout */
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow);
-    z-index: 9999;
+    overflow: hidden;
     isolation: isolate;
   }
-  /* Couche 1 : flou + distorsion de l'arriere-plan (la "refraction") */
-  #chat-bubble::before, #chat-panel::before {
-    content: "";
-    position: absolute;
-    inset: -40%;                      /* deborde puis se fait rogner -> pas de trou aux bords */
-    pointer-events: none;
-    z-index: 0;
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
-    backdrop-filter: blur(var(--blur)) saturate(160%);
-    filter: url(#chat-glass-distortion);
-  }
-  /* Couche 2 : teinte + reflets internes (le "biseau" de verre) */
-  #chat-bubble::after, #chat-panel::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background: var(--glass-tint);
-    box-shadow:
-      inset 2px 2px 1px rgba(255, 255, 255, 0.6),
-      inset -1px -1px 1px rgba(255, 255, 255, 0.5);
-  }
 
-  /* --- La bulle flottante --- */
+  /* --- La bulle : fond plein -> TOUJOURS visible, meme sur fond blanc --- */
   #chat-bubble {
     width: 60px; height: 60px;
     border-radius: 50%;
+    background: var(--accent-grad);
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: transform 0.2s ease;
   }
   #chat-bubble:hover { transform: scale(1.08); }
+  #chat-bubble::after {           /* reflet "verre" sur la bulle coloree */
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    box-shadow:
+      inset 2px 2px 2px rgba(255, 255, 255, 0.45),
+      inset -2px -2px 3px rgba(0, 0, 0, 0.18);
+  }
   #chat-bubble svg {
-    position: relative; z-index: 1;   /* icone au-dessus du verre */
+    position: relative; z-index: 1;
     width: 28px; height: 28px; fill: #fff;
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
   }
 
-  /* --- Le panneau de chat --- */
+  /* --- Le panneau : vrai effet liquid glass --- */
   #chat-panel {
     width: 370px; max-width: calc(100vw - 32px);
     height: 540px; max-height: calc(100vh - 48px);
@@ -87,8 +69,23 @@
     from { opacity: 0; transform: translateY(16px) scale(0.98); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
+  /* Couche 1 : flou + distorsion (refraction) */
+  #chat-panel::before {
+    content: ""; position: absolute; inset: -40%; pointer-events: none; z-index: 0;
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
+    backdrop-filter: blur(var(--blur)) saturate(160%);
+    filter: url(#chat-glass-distortion);
+  }
+  /* Couche 2 : teinte + reflets internes */
+  #chat-panel::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background: var(--glass-tint);
+    box-shadow:
+      inset 2px 2px 1px rgba(255, 255, 255, 0.6),
+      inset -1px -1px 1px rgba(255, 255, 255, 0.5);
+  }
 
-  /* Le contenu passe AU-DESSUS des couches de verre (z-index: 1) */
+  /* Contenu AU-DESSUS du verre */
   #chat-header, #chat-messages, #chat-input-bar { position: relative; z-index: 1; }
 
   #chat-header {
@@ -110,13 +107,18 @@
     font-size: 14px; line-height: 1.45; word-wrap: break-word;
   }
   .msg.bot {
-    align-self: flex-start; background: rgba(255, 255, 255, 0.85);
+    align-self: flex-start; background: rgba(255, 255, 255, 0.88);
     color: var(--text); border-bottom-left-radius: 4px;
   }
   .msg.user {
     align-self: flex-end; background: var(--accent-grad);
     color: #fff; border-bottom-right-radius: 4px;
   }
+  /* Liens cliquables et visibles */
+  .msg a { text-decoration: underline; word-break: break-word; }
+  .msg.bot a { color: var(--accent); }
+  .msg.user a { color: #fff; }
+
   .typing { display: flex; gap: 4px; align-items: center; }
   .typing span {
     width: 7px; height: 7px; border-radius: 50%;
@@ -173,7 +175,6 @@
 
 <script>
   const CONFIG = {
-    // Endpoint de production (deja configure) :
     endpoint: "https://kypolab.com/chatbot/chat.php",
     greeting: "Bonjour ! 👋 Je suis l'assistant de Pol. Posez-moi vos questions sur son parcours, ses projets ou le poste qu'il recherche.",
   };
@@ -202,10 +203,18 @@
     d.textContent = t;
     return d.innerHTML;
   }
+  // Echappe le HTML PUIS transforme liens markdown, URLs, emails et **gras**.
   function format(t) {
-    return escapeHtml(t)
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\n/g, "<br>");
+    let s = escapeHtml(t);
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+                  '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    s = s.replace(/(^|[^"=>/])(https?:\/\/[^\s<]+)/g,
+                  '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+    s = s.replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+                  '<a href="mailto:$1">$1</a>');
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/\n/g, "<br>");
+    return s;
   }
   function addMessage(role, text) {
     const div = document.createElement("div");
