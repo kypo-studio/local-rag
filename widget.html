@@ -212,6 +212,10 @@
   const input    = document.getElementById("cg-input");
   const sendBtn  = document.getElementById("cg-send");
   let greeted = false;
+  // Memoire de conversation : on garde le fil des echanges pour le renvoyer
+  // au serveur a chaque question (le bot comprend ainsi les questions de suivi).
+  const historique = [];
+  const MAX_HISTORIQUE = 6; // fenetre glissante (doit rester <= au plafond serveur)
 
   document.body.appendChild(bubble);
   document.body.appendChild(panel);
@@ -271,11 +275,19 @@
       const res = await fetch(CONFIG.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        // On envoie la question ET l'historique des echanges precedents.
+        body: JSON.stringify({ question, history: historique }),
       });
       const data = await res.json();
       typing.remove();
-      addMessage("bot", data.answer || "Désolé, une erreur est survenue. Réessayez plus tard.");
+      const reponse = data.answer || "Désolé, une erreur est survenue. Réessayez plus tard.";
+      addMessage("bot", reponse);
+      // On enregistre l'echange dans l'historique, puis on tronque (fenetre glissante).
+      historique.push({ role: "user", content: question });
+      historique.push({ role: "assistant", content: reponse });
+      if (historique.length > MAX_HISTORIQUE) {
+        historique.splice(0, historique.length - MAX_HISTORIQUE);
+      }
     } catch (e) {
       typing.remove();
       addMessage("bot", "Impossible de joindre le serveur. Vérifiez votre connexion.");

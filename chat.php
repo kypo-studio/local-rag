@@ -23,6 +23,7 @@ const MODELE_GENERATION = "mistral-small-latest";
 const NB_CHUNKS = 4;        // top-k : nb de chunks injectes dans le prompt
 const MAX_TOKENS = 400;     // garde-fou : plafonne la longueur (et le cout) de la reponse
 const MAX_LONGUEUR_QUESTION = 500; // garde-fou : rejette les messages trop longs
+const MAX_HISTORIQUE = 6;   // memoire : nb max de messages d'historique gardes (fenetre glissante)
 
 const RATE_LIMIT_MAX = 20;        // garde-fou : messages max par IP...
 const RATE_LIMIT_FENETRE = 600;   // ...sur cette fenetre (600 s = 10 min)
@@ -43,9 +44,14 @@ Tu es l'assistant personnel de Pol Quimerc'h, sur son site portfolio.
 Tu reponds aux visiteurs (souvent des recruteurs) a la PREMIERE PERSONNE,
 au nom de Pol ("je", "mon parcours"...), de façon chaleureuse et concise.
 
-Tu ne dois utiliser QUE les informations fournies dans le CONTEXTE ci-dessous.
-Si l'information demandee n'y figure pas, dis simplement que tu n'as pas cette
-information et invite a contacter Pol directement. N'invente JAMAIS de faits.
+Tu peux t'appuyer sur deux sources : (1) le CONTEXTE fourni a chaque message et
+(2) l'historique de la conversation en cours. Tu comprends ainsi les questions de
+suivi (ex. "et celui-la ?", "resume ca").
+
+N'invente JAMAIS de faits sur Pol : un fait (formation, projet, competence, date,
+coordonnee) doit provenir du CONTEXTE ou d'un message precedent de la conversation.
+Si une information factuelle demandee ne figure dans aucune de ces sources, dis
+simplement que tu ne l'as pas et invite a contacter Pol directement.
 PROMPT;
 
 
@@ -82,6 +88,32 @@ if (mb_strlen($question) > MAX_LONGUEUR_QUESTION) {
     echo json_encode(["error" => "Question trop longue."]);
     exit;
 }
+
+// --- Memoire de conversation : on recupere l'historique envoye par le widget.
+// Le navigateur envoie { "history": [ {role, content}, ... ] }. On ne lui fait
+// JAMAIS confiance : on assainit tout (roles autorises, longueur, nb de messages).
+function nettoyer_historique($brut): array {
+    if (!is_array($brut)) return [];
+    $propre = [];
+    foreach ($brut as $msg) {
+        $role = $msg["role"] ?? "";
+        $contenu = trim((string)($msg["content"] ?? ""));
+        // On n'accepte que les deux roles legitimes d'une conversation.
+        if (($role === "user" || $role === "assistant") && $contenu !== "") {
+            // On tronque chaque message au cas ou (anti-abus de longueur).
+            $propre[] = [
+                "role" => $role,
+                "content" => mb_substr($contenu, 0, MAX_LONGUEUR_QUESTION),
+            ];
+        }
+    }
+    // Fenetre glissante : on ne garde que les derniers messages.
+    if (count($propre) > MAX_HISTORIQUE) {
+        $propre = array_slice($propre, -MAX_HISTORIQUE);
+    }
+    return $propre;
+}
+$historique = nettoyer_historique($entree["history"] ?? []);
 
 
 // =====================================================================
@@ -222,6 +254,17 @@ foreach ($meilleurs as $i => $score) {
 
 $message_utilisateur = "CONTEXTE :\n$contexte\n\nQUESTION DU VISITEUR : $question";
 
+// On assemble la liste de messages envoyee au modele :
+//   [ system ] + [ historique des echanges precedents ] + [ question courante ]
+// L'historique donne au modele le fil de la conversation (il comprend ainsi les
+// questions de suivi type "et celui-la ?"). Seule la question COURANTE est
+// enrichie du contexte RAG ; les anciens messages restent tels quels.
+$messages = [["role" => "system", "content" => SYSTEM_PROMPT]];
+foreach ($historique as $msg) {
+    $messages[] = $msg;
+}
+$messages[] = ["role" => "user", "content" => $message_utilisateur];
+
 $ch = curl_init("https://api.mistral.ai/v1/chat/completions");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
@@ -232,10 +275,7 @@ curl_setopt_array($ch, [
     CURLOPT_POSTFIELDS => json_encode([
         "model" => MODELE_GENERATION,
         "max_tokens" => MAX_TOKENS,
-        "messages" => [
-            ["role" => "system", "content" => SYSTEM_PROMPT],
-            ["role" => "user", "content" => $message_utilisateur],
-        ],
+        "messages" => $messages,
     ]),
 ]);
 $reponse_brute = curl_exec($ch);
