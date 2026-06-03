@@ -5,10 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chatbot RAG — Pol Quimerc'h</title>
 <style>
-  /* =================================================================
-     DEMO : fond de page (sert juste a voir l'effet "verre" en local ;
-     dans Divi, ce fond ne s'applique pas, seul le widget compte).
-     ================================================================= */
+  /* DEMO : fond de page (pour voir l'effet verre en local ; absent dans Divi). */
   body {
     margin: 0;
     min-height: 100vh;
@@ -17,63 +14,72 @@
     background-attachment: fixed;
   }
 
-  /* =================================================================
-     VARIABLES : on centralise les couleurs/reglages pour ajuster vite.
-     ================================================================= */
   :root {
-    --glass-bg: rgba(255, 255, 255, 0.18);
-    --glass-panel-bg: rgba(255, 255, 255, 0.55);
+    --glass-tint: rgba(255, 255, 255, 0.30);
     --glass-border: rgba(255, 255, 255, 0.45);
-    --blur: 18px;
+    --blur: 8px;
     --accent: #6a5cff;
     --accent-grad: linear-gradient(135deg, #6a82fb, #8a5cff);
     --text: #1d1d2b;
-    --radius: 22px;
-    --shadow: 0 8px 32px rgba(31, 38, 80, 0.22);
+    --radius: 24px;
+    --shadow: 0 8px 32px rgba(31, 38, 80, 0.28);
   }
 
-  /* ---------- La bulle flottante (bouton d'ouverture) ---------- */
-  #chat-bubble {
+  /* --- Socle commun "liquid glass" pour la bulle et le panneau --- */
+  #chat-bubble, #chat-panel {
     position: fixed;
-    bottom: 24px;
     right: 24px;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
+    bottom: 24px;
+    overflow: hidden;                 /* rogne les couches de verre au bord */
     border: 1px solid var(--glass-border);
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--blur)) saturate(180%);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
     box-shadow: var(--shadow);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.2s ease;
     z-index: 9999;
+    isolation: isolate;
+  }
+  /* Couche 1 : flou + distorsion de l'arriere-plan (la "refraction") */
+  #chat-bubble::before, #chat-panel::before {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    pointer-events: none;
+    z-index: 0;
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
+    backdrop-filter: blur(var(--blur)) saturate(160%);
+    filter: url(#chat-glass-distortion);
+  }
+  /* Couche 2 : teinte + reflets internes (le "biseau" de verre) */
+  #chat-bubble::after, #chat-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: var(--glass-tint);
+    box-shadow:
+      inset 2px 2px 1px rgba(255, 255, 255, 0.6),
+      inset -1px -1px 1px rgba(255, 255, 255, 0.5);
+  }
+
+  #chat-bubble {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s ease;
   }
   #chat-bubble:hover { transform: scale(1.08); }
-  #chat-bubble svg { width: 28px; height: 28px; fill: #fff; }
+  #chat-bubble svg {
+    position: relative; z-index: 1;
+    width: 28px; height: 28px; fill: #fff;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+  }
 
-  /* ---------- Le panneau de chat ---------- */
   #chat-panel {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 370px;
-    max-width: calc(100vw - 32px);
-    height: 540px;
-    max-height: calc(100vh - 48px);
+    width: 370px; max-width: calc(100vw - 32px);
+    height: 540px; max-height: calc(100vh - 48px);
     border-radius: var(--radius);
-    border: 1px solid var(--glass-border);
-    background: var(--glass-panel-bg);
-    backdrop-filter: blur(var(--blur)) saturate(180%);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
-    box-shadow: var(--shadow);
-    display: none;            /* cache par defaut */
+    display: none;
     flex-direction: column;
-    overflow: hidden;
-    z-index: 9999;
     animation: pop 0.22s ease;
   }
   #chat-panel.open { display: flex; }
@@ -82,14 +88,11 @@
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  /* En-tete */
+  #chat-header, #chat-messages, #chat-input-bar { position: relative; z-index: 1; }
+
   #chat-header {
-    padding: 16px 18px;
-    background: var(--accent-grad);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    padding: 16px 18px; background: var(--accent-grad); color: #fff;
+    display: flex; align-items: center; justify-content: space-between;
   }
   #chat-header h3 { margin: 0; font-size: 15px; font-weight: 600; }
   #chat-header span { font-size: 12px; opacity: 0.85; }
@@ -97,38 +100,22 @@
     background: none; border: none; color: #fff;
     font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px;
   }
-
-  /* Zone des messages */
   #chat-messages {
-    flex: 1;
-    padding: 16px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex: 1; padding: 16px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
   }
   .msg {
-    max-width: 80%;
-    padding: 10px 14px;
-    border-radius: 16px;
-    font-size: 14px;
-    line-height: 1.45;
-    word-wrap: break-word;
+    max-width: 80%; padding: 10px 14px; border-radius: 16px;
+    font-size: 14px; line-height: 1.45; word-wrap: break-word;
   }
   .msg.bot {
-    align-self: flex-start;
-    background: rgba(255, 255, 255, 0.85);
-    color: var(--text);
-    border-bottom-left-radius: 4px;
+    align-self: flex-start; background: rgba(255, 255, 255, 0.85);
+    color: var(--text); border-bottom-left-radius: 4px;
   }
   .msg.user {
-    align-self: flex-end;
-    background: var(--accent-grad);
-    color: #fff;
-    border-bottom-right-radius: 4px;
+    align-self: flex-end; background: var(--accent-grad);
+    color: #fff; border-bottom-right-radius: 4px;
   }
-
-  /* Indicateur de saisie (les 3 points animes) */
   .typing { display: flex; gap: 4px; align-items: center; }
   .typing span {
     width: 7px; height: 7px; border-radius: 50%;
@@ -138,38 +125,33 @@
   .typing span:nth-child(2) { animation-delay: 0.2s; }
   .typing span:nth-child(3) { animation-delay: 0.4s; }
   @keyframes blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
-
-  /* Barre de saisie */
   #chat-input-bar {
-    display: flex;
-    gap: 8px;
-    padding: 12px;
+    display: flex; gap: 8px; padding: 12px;
     border-top: 1px solid rgba(255, 255, 255, 0.4);
   }
   #chat-input {
-    flex: 1;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 14px;
-    padding: 10px 12px;
-    font-size: 14px;
-    font-family: inherit;
-    outline: none;
-    background: rgba(255, 255, 255, 0.7);
+    flex: 1; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 14px;
+    padding: 10px 12px; font-size: 14px; font-family: inherit;
+    outline: none; background: rgba(255, 255, 255, 0.7);
   }
   #chat-send {
-    border: none;
-    border-radius: 14px;
-    padding: 0 16px;
-    background: var(--accent-grad);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
+    border: none; border-radius: 14px; padding: 0 16px;
+    background: var(--accent-grad); color: #fff;
+    font-size: 14px; font-weight: 600; cursor: pointer;
   }
   #chat-send:disabled { opacity: 0.5; cursor: default; }
 </style>
 </head>
 <body>
+
+  <!-- Filtre SVG de distorsion (la "refraction" du verre). Cache. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="chat-glass-distortion" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.01 0.01" numOctaves="2" seed="92" result="noise"/>
+      <feGaussianBlur in="noise" stdDeviation="2" result="blurred"/>
+      <feDisplacementMap in="SourceGraphic" in2="blurred" scale="55" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
 
   <!-- Bouton flottant -->
   <div id="chat-bubble" aria-label="Ouvrir le chat" role="button">
@@ -194,25 +176,20 @@
   </div>
 
 <script>
-  // ================================================================
-  // CONFIG : pour passer du local a Infomaniak, change juste l'URL.
-  // ================================================================
+  // CONFIG : pour passer du local a la prod, change juste l'URL.
   const CONFIG = {
-    endpoint: "chat.php",   // en prod : "https://ton-site.fr/chat.php"
+    endpoint: "chat.php",   // en prod : "https://kypolab.com/chatbot/chat.php"
     greeting: "Bonjour ! 👋 Je suis l'assistant de Pol. Posez-moi vos questions sur son parcours, ses projets ou le poste qu'il recherche.",
   };
 
-  // Raccourcis vers les elements du DOM.
   const bubble   = document.getElementById("chat-bubble");
   const panel    = document.getElementById("chat-panel");
   const closeBtn = document.getElementById("chat-close");
   const messages = document.getElementById("chat-messages");
   const input    = document.getElementById("chat-input");
   const sendBtn  = document.getElementById("chat-send");
-
   let greeted = false;
 
-  // ---------- Ouverture / fermeture ----------
   bubble.addEventListener("click", () => {
     panel.classList.add("open");
     bubble.style.display = "none";
@@ -224,21 +201,16 @@
     bubble.style.display = "flex";
   });
 
-  // ---------- Securite : on echappe le HTML pour eviter toute injection ----------
   function escapeHtml(t) {
     const d = document.createElement("div");
     d.textContent = t;
     return d.innerHTML;
   }
-
-  // Mise en forme legere : **gras** et sauts de ligne.
   function format(t) {
     return escapeHtml(t)
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/\n/g, "<br>");
   }
-
-  // ---------- Ajout d'un message a l'ecran ----------
   function addMessage(role, text) {
     const div = document.createElement("div");
     div.className = "msg " + role;
@@ -247,8 +219,6 @@
     messages.scrollTop = messages.scrollHeight;
     return div;
   }
-
-  // ---------- Indicateur "..." pendant que Mistral reflechit ----------
   function showTyping() {
     const div = document.createElement("div");
     div.className = "msg bot typing";
@@ -257,17 +227,13 @@
     messages.scrollTop = messages.scrollHeight;
     return div;
   }
-
-  // ---------- Envoi de la question au serveur PHP ----------
   async function send() {
     const question = input.value.trim();
     if (!question) return;
-
     addMessage("user", question);
     input.value = "";
     sendBtn.disabled = true;
     const typing = showTyping();
-
     try {
       const res = await fetch(CONFIG.endpoint, {
         method: "POST",
@@ -276,12 +242,7 @@
       });
       const data = await res.json();
       typing.remove();
-
-      if (data.answer) {
-        addMessage("bot", data.answer);
-      } else {
-        addMessage("bot", "Désolé, une erreur est survenue. Réessayez plus tard.");
-      }
+      addMessage("bot", data.answer || "Désolé, une erreur est survenue. Réessayez plus tard.");
     } catch (e) {
       typing.remove();
       addMessage("bot", "Impossible de joindre le serveur. Vérifiez votre connexion.");
@@ -290,7 +251,6 @@
       input.focus();
     }
   }
-
   sendBtn.addEventListener("click", send);
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
 </script>
