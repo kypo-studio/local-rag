@@ -187,6 +187,11 @@
   const sendBtn  = document.getElementById("chat-send");
   let greeted = false;
 
+  // Anti-"stacking context" : on rattache le widget directement au <body> pour
+  // qu'aucun parent Divi (avec transform/filter) ne bloque son affichage par-dessus.
+  document.body.appendChild(bubble);
+  document.body.appendChild(panel);
+
   bubble.addEventListener("click", () => {
     panel.classList.add("open");
     bubble.style.display = "none";
