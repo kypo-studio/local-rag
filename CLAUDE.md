@@ -81,13 +81,36 @@ sans aucun sens. La dimension des vecteurs doit aussi correspondre.
 ## État d'avancement
 - [x] Choix de l'architecture (option B : indexation Python, serveur PHP léger)
 - [x] Choix des modèles (Mistral : `mistral-embed` + `mistral-small-latest`)
-- [x] Phase 1 : rédaction des chunks (`contenu.txt`) — 20 chunks
+- [x] Phase 1 : rédaction des chunks (`contenu.txt`) — 20 chunks, avec rubriques
 - [x] Phase 1 : script Python d'indexation → `embeddings.json` (`index.py`)
-- [x] Phase 2 : script PHP (recherche cosinus + appel Mistral) — `chat.php`, testé
+- [x] Phase 2 : script PHP (recherche + appel Mistral) — `chat.php`, testé
 - [x] Front-end : widget chatbot Liquid Glass (`widget.html`)
 - [x] Garde-fous serveur : rate limiting par IP + cap quotidien (testés)
 - [ ] Intégration dans Divi + upload sur Infomaniak (voir `DEPLOY.md`)
 
+## RAG avancé (V2) — modules ajoutés
+Le RAG « naïf » (embed → cosinus → top-k) a été enrichi de 8 modules :
+1. **Mémoire de conversation** — historique (fenêtre glissante) renvoyé au modèle ;
+   comprend les questions de suivi. Côté widget + `chat.php`.
+2. **Recherche hybride** — cosinus (sémantique) + BM25 (mots-clés), fusion **RRF**.
+   Fiabilise les noms propres / termes exacts.
+3. **Query rewriting** — reformule une question de suivi en question autonome (petit
+   appel LLM) avant la recherche ; seulement s'il y a un historique.
+4. **Reranking MMR** — récupère large (10) puis re-trie pour 4 chunks pertinents ET
+   diversifiés (`LAMBDA_MMR=0.8`).
+5. **Citations / sources** — rubrique par chunk (`#@cat:` dans `contenu.txt`,
+   propagée par `index.py`) ; le bot l'évoque naturellement.
+6. **Streaming** — réponse en flux SSE token par token (PHP `WRITEFUNCTION` +
+   `fetch` reader JS). Dégradation gracieuse si l'hébergement bufferise.
+7. **Anti-prompt-injection** — couche 1 heuristique (`est_injection()`, coût zéro)
+   + couche 2 durcissement du system prompt.
+8. **Évaluation** — `evaluate.py` mesure le retrieval (recall@k, MRR) sur un jeu de
+   test. Référence : Recall@4 = 100 %, MRR = 0.923.
+
+> Régénérer `embeddings.json` (`uv run index.py`) après toute modif de `contenu.txt`,
+> puis vérifier la non-régression avec `uv run evaluate.py`.
+
 ## Prochaine étape
-Suivre `DEPLOY.md` : uploader `chat.php` + `embeddings.json` sur Infomaniak,
-créer `secrets.php` avec la clé, et coller le widget dans le pied de page Divi.
+Suivre `DEPLOY.md` : uploader `chat.php` + `embeddings.json` (modifiés en V2) sur
+Infomaniak, créer `secrets.php` avec la clé, et coller `widget-divi.html` dans le
+pied de page Divi.
