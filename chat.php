@@ -56,6 +56,12 @@ N'invente JAMAIS de faits sur Pol : un fait (formation, projet, competence, date
 coordonnee) doit provenir du CONTEXTE ou d'un message precedent de la conversation.
 Si une information factuelle demandee ne figure dans aucune de ces sources, dis
 simplement que tu ne l'as pas et invite a contacter Pol directement.
+
+Chaque element du CONTEXTE est precede de sa rubrique entre parentheses, ex.
+"(Projets)", "(Formation)". Quand c'est pertinent, ancre ta reponse en evoquant
+NATURELLEMENT la rubrique concernee ("Cote projets, ...", "Au niveau de ma
+formation, ..."). N'ecris JAMAIS la rubrique sous forme d'etiquette brute entre
+parentheses ni de balise ; reste fluide et a la premiere personne.
 PROMPT;
 
 
@@ -443,9 +449,12 @@ $candidats = array_keys(array_slice($scores, 0, NB_CANDIDATS, true));
 //    (pertinence = cosinus question<->chunk, deja calcule dans $scores_cos).
 $meilleurs = mmr_rerank($candidats, $scores_cos, $index, NB_CHUNKS, LAMBDA_MMR);
 
+// Chaque chunk est prefixe de sa CATEGORIE (metadonnee) : le modele sait ainsi
+// de quelle rubrique vient chaque info et peut la citer naturellement.
 $contexte = "";
 foreach ($meilleurs as $i) {
-    $contexte .= "- " . $index[$i]["text"] . "\n";
+    $cat = $index[$i]["category"] ?? "Général";
+    $contexte .= "- (" . $cat . ") " . $index[$i]["text"] . "\n";
 }
 
 

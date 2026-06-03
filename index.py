@@ -27,25 +27,49 @@ FICHIER_CONTENU = Path("contenu.txt")
 FICHIER_SORTIE = Path("embeddings.json")
 
 
-def lire_chunks(chemin: Path) -> list[str]:
-    """Lit le fichier et renvoie la liste des chunks.
+def lire_chunks(chemin: Path) -> list[dict]:
+    """Lit le fichier et renvoie la liste des chunks avec leur categorie.
 
     Regles :
       - les lignes commencant par # sont des commentaires -> ignorees
+      - SAUF "#@cat: Label" qui definit la categorie des chunks suivants
       - les chunks sont separes par une ou plusieurs lignes vides
+
+    Retourne une liste de dicts : {"text": ..., "category": ...}.
     """
-    texte_brut = chemin.read_text(encoding="utf-8")
+    chunks: list[dict] = []
+    categorie_courante = "Général"  # valeur par defaut si aucune directive
+    buffer: list[str] = []
 
-    # 1) On retire les lignes de commentaire.
-    lignes = [
-        ligne for ligne in texte_brut.splitlines()
-        if not ligne.strip().startswith("#")
-    ]
-    texte = "\n".join(lignes)
+    def flush() -> None:
+        """Transforme le buffer accumule en un chunk, puis le vide."""
+        texte = "\n".join(buffer).strip()
+        if texte:
+            chunks.append({"text": texte, "category": categorie_courante})
+        buffer.clear()
 
-    # 2) On decoupe sur les lignes vides, on nettoie, on jette les vides.
-    blocs = re.split(r"\n\s*\n", texte)
-    chunks = [bloc.strip() for bloc in blocs if bloc.strip()]
+    for ligne in chemin.read_text(encoding="utf-8").splitlines():
+        depouillee = ligne.strip()
+
+        # Directive de categorie : "#@cat: Projets"
+        match = re.match(r"#@cat:\s*(.+)", depouillee)
+        if match:
+            categorie_courante = match.group(1).strip()
+            continue
+
+        # Autre commentaire -> ignore.
+        if depouillee.startswith("#"):
+            continue
+
+        # Ligne vide -> fin du chunk en cours.
+        if depouillee == "":
+            flush()
+            continue
+
+        # Ligne de contenu -> on l'accumule.
+        buffer.append(ligne)
+
+    flush()  # ne pas oublier le dernier chunk
     return chunks
 
 
@@ -59,7 +83,11 @@ def main() -> None:
     chunks = lire_chunks(FICHIER_CONTENU)
     print(f"{len(chunks)} chunks lus depuis {FICHIER_CONTENU}.")
 
-    # On envoie TOUS les chunks en un seul appel (batch) : plus rapide et
+    # On embedde uniquement le TEXTE (la categorie est une metadonnee, pas
+    # du contenu a vectoriser). On garde l'ordre pour reassocier ensuite.
+    textes = [c["text"] for c in chunks]
+
+    # On envoie TOUS les textes en un seul appel (batch) : plus rapide et
     # moins d'appels reseau. Mistral ne distingue pas document/query
     # (contrairement a Voyage) : on envoie juste le texte.
     reponse = requests.post(
@@ -68,16 +96,16 @@ def main() -> None:
             "Authorization": f"Bearer {cle}",
             "Content-Type": "application/json",
         },
-        json={"model": MODELE_EMBEDDING, "input": chunks},
+        json={"model": MODELE_EMBEDDING, "input": textes},
     )
     reponse.raise_for_status()  # leve une erreur claire si l'API repond mal
     data = reponse.json()
 
     vecteurs = [item["embedding"] for item in data["data"]]
 
-    # On assemble la structure finale : une liste de {text, embedding}.
+    # On assemble la structure finale : une liste de {text, category, embedding}.
     donnees = [
-        {"text": chunk, "embedding": vecteur}
+        {"text": chunk["text"], "category": chunk["category"], "embedding": vecteur}
         for chunk, vecteur in zip(chunks, vecteurs)
     ]
 
