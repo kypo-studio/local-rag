@@ -7,169 +7,174 @@
 <style>
   /* DEMO : fond de page (pour voir l'effet verre en local ; absent dans Divi). */
   body {
-    margin: 0;
-    min-height: 100vh;
+    margin: 0; min-height: 100vh;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: linear-gradient(135deg, #960d41 0%, #d6336c 50%, #ff8fab 100%);
+    background: linear-gradient(135deg, #6a82fb 0%, #5e0d2e 50%, #960d41 100%);
     background-attachment: fixed;
   }
 
-  :root {
-    --glass-tint: rgba(255, 255, 255, 0.30);
-    --glass-border: rgba(255, 255, 255, 0.40);
-    --blur: 8px;
-    --accent: #960d41;
-    --accent-grad: linear-gradient(135deg, #c4185c, #960d41);
-    --text: #1d1d2b;
-    --radius: 24px;
-    --shadow: 0 8px 32px rgba(60, 5, 28, 0.32);
-  }
+  #cg-bubble, #cg-panel, #cg-bubble *, #cg-panel * { box-sizing: border-box; }
 
-  #chat-bubble, #chat-panel {
+  #cg-bubble, #cg-panel {
     position: fixed;
-    right: 24px;
-    bottom: 24px;
+    right: 24px; bottom: 24px;
     z-index: 2147483646;
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow);
-    overflow: hidden;
-    isolation: isolate;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --cg-accent: #960d41;
+    --cg-grad: linear-gradient(135deg, #c4185c, #960d41);
+    --cg-text: #20121a;
+    --cg-shadow: 0 12px 40px rgba(60, 5, 28, 0.30);
   }
 
-  #chat-bubble {
-    width: 60px; height: 60px;
+  #cg-bubble {
+    width: 62px; height: 62px;
     border-radius: 50%;
-    background: var(--accent-grad);
+    background: var(--cg-grad);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: var(--cg-shadow),
+                inset 0 2px 3px rgba(255, 255, 255, 0.4),
+                inset 0 -3px 5px rgba(0, 0, 0, 0.18);
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: transform 0.2s ease;
   }
-  #chat-bubble:hover { transform: scale(1.08); }
-  #chat-bubble::after {
-    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-    box-shadow:
-      inset 2px 2px 2px rgba(255, 255, 255, 0.45),
-      inset -2px -2px 3px rgba(0, 0, 0, 0.18);
-  }
-  #chat-bubble svg {
-    position: relative; z-index: 1;
+  #cg-bubble:hover { transform: translateY(-2px) scale(1.06); }
+  #cg-bubble svg {
     width: 28px; height: 28px; fill: #fff;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
   }
 
-  #chat-panel {
+  #cg-panel {
     width: 370px; max-width: calc(100vw - 32px);
     height: 540px; max-height: calc(100vh - 48px);
-    border-radius: var(--radius);
+    border-radius: 22px;
+    overflow: hidden;
     display: none;
     flex-direction: column;
-    animation: pop 0.22s ease;
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    box-shadow: var(--cg-shadow), inset 0 1px 1px rgba(255, 255, 255, 0.7);
+    animation: cg-pop 0.22s ease;
   }
-  #chat-panel.open { display: flex; }
-  @keyframes pop {
+  #cg-panel.cg-open { display: flex; }
+  @keyframes cg-pop {
     from { opacity: 0; transform: translateY(16px) scale(0.98); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  #chat-panel::before {
-    content: ""; position: absolute; inset: -40%; pointer-events: none; z-index: 0;
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
-    backdrop-filter: blur(var(--blur)) saturate(160%);
-    filter: url(#chat-glass-distortion);
-  }
-  #chat-panel::after {
-    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-    background: var(--glass-tint);
-    box-shadow:
-      inset 2px 2px 1px rgba(255, 255, 255, 0.6),
-      inset -1px -1px 1px rgba(255, 255, 255, 0.5);
+    to   { opacity: 1; transform: none; }
   }
 
-  #chat-header, #chat-messages, #chat-input-bar { position: relative; z-index: 1; }
-
-  #chat-header {
-    padding: 16px 18px; background: var(--accent-grad); color: #fff;
+  #cg-header {
+    flex: 0 0 auto;
+    padding: 15px 18px;
+    background: var(--cg-grad);
+    color: #fff;
     display: flex; align-items: center; justify-content: space-between;
   }
-  #chat-header h3 { margin: 0; font-size: 15px; font-weight: 600; }
-  #chat-header span { font-size: 12px; opacity: 0.85; }
-  #chat-close {
-    background: none; border: none; color: #fff;
-    font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px;
+  #cg-header .cg-titles { display: flex; flex-direction: column; gap: 2px; }
+  #cg-header h3 { margin: 0; font-size: 15px; font-weight: 600; color: #fff; line-height: 1.2; }
+  #cg-header small { font-size: 12px; opacity: 0.85; color: #fff; }
+  #cg-close {
+    background: none; border: 0; color: #fff;
+    font-size: 24px; line-height: 1; cursor: pointer; padding: 0 2px; opacity: 0.9;
   }
-  #chat-messages {
-    flex: 1; padding: 16px; overflow-y: auto;
-    display: flex; flex-direction: column; gap: 10px;
-  }
-  .msg {
-    max-width: 80%; padding: 10px 14px; border-radius: 16px;
-    font-size: 14px; line-height: 1.45; word-wrap: break-word;
-  }
-  .msg.bot {
-    align-self: flex-start; background: rgba(255, 255, 255, 0.88);
-    color: var(--text); border-bottom-left-radius: 4px;
-  }
-  .msg.user {
-    align-self: flex-end; background: var(--accent-grad);
-    color: #fff; border-bottom-right-radius: 4px;
-  }
-  .msg a { text-decoration: underline; word-break: break-word; }
-  .msg.bot a { color: var(--accent); }
-  .msg.user a { color: #fff; }
+  #cg-close:hover { opacity: 1; }
 
-  .typing { display: flex; gap: 4px; align-items: center; }
-  .typing span {
+  #cg-messages {
+    flex: 1 1 auto;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(150, 13, 65, 0.4) transparent;
+  }
+  #cg-messages::-webkit-scrollbar { width: 7px; }
+  #cg-messages::-webkit-scrollbar-thumb { background: rgba(150, 13, 65, 0.35); border-radius: 4px; }
+
+  .cg-msg {
+    max-width: 82%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 14px; line-height: 1.5;
+    overflow-wrap: anywhere;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    color: var(--cg-text);
+  }
+  .cg-msg.cg-bot  { align-self: flex-start; background: #ffffff; border-bottom-left-radius: 5px; }
+  .cg-msg.cg-user { align-self: flex-end; background: var(--cg-grad); color: #fff; border-bottom-right-radius: 5px; }
+  .cg-msg strong { font-weight: 700; }
+  .cg-msg a { text-decoration: underline; overflow-wrap: anywhere; }
+  .cg-msg.cg-bot a  { color: var(--cg-accent); font-weight: 600; }
+  .cg-msg.cg-user a { color: #fff; }
+
+  .cg-typing { display: flex; gap: 4px; align-items: center; }
+  .cg-typing span {
     width: 7px; height: 7px; border-radius: 50%;
-    background: var(--accent); opacity: 0.5;
-    animation: blink 1.2s infinite both;
+    background: var(--cg-accent); opacity: 0.5;
+    animation: cg-blink 1.2s infinite both;
   }
-  .typing span:nth-child(2) { animation-delay: 0.2s; }
-  .typing span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
-  #chat-input-bar {
+  .cg-typing span:nth-child(2) { animation-delay: 0.2s; }
+  .cg-typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes cg-blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+
+  #cg-inputbar {
+    flex: 0 0 auto;
     display: flex; gap: 8px; padding: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.4);
+    border-top: 1px solid rgba(150, 13, 65, 0.12);
+    background: rgba(255, 255, 255, 0.35);
   }
-  #chat-input {
-    flex: 1; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 14px;
-    padding: 10px 12px; font-size: 14px; font-family: inherit;
-    outline: none; background: rgba(255, 255, 255, 0.7);
+  #cg-input {
+    flex: 1 1 auto; min-width: 0;
+    margin: 0 !important;
+    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+    border-radius: 14px !important;
+    padding: 10px 14px !important;
+    font-size: 14px !important; font-family: inherit !important;
+    color: var(--cg-text) !important;
+    background: rgba(255, 255, 255, 0.92) !important;
+    outline: none !important; box-shadow: none !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
-  #chat-send {
-    border: none; border-radius: 14px; padding: 0 16px;
-    background: var(--accent-grad); color: #fff;
-    font-size: 14px; font-weight: 600; cursor: pointer;
+  #cg-input:focus {
+    border-color: var(--cg-accent) !important;
+    box-shadow: 0 0 0 3px rgba(150, 13, 65, 0.15) !important;
   }
-  #chat-send:disabled { opacity: 0.5; cursor: default; }
+  #cg-send {
+    flex: 0 0 auto;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 14px !important;
+    padding: 0 16px !important;
+    background: var(--cg-grad) !important;
+    color: #fff !important;
+    font-size: 14px !important; font-weight: 600 !important; font-family: inherit !important;
+    text-transform: none !important;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.1s ease;
+  }
+  #cg-send:hover { filter: brightness(1.08); }
+  #cg-send:active { transform: scale(0.97); }
+  #cg-send:disabled { opacity: 0.5; cursor: default; }
 </style>
 </head>
 <body>
 
-  <!-- Filtre SVG de distorsion (la "refraction" du verre). Cache. -->
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <filter id="chat-glass-distortion" x="0%" y="0%" width="100%" height="100%">
-      <feTurbulence type="fractalNoise" baseFrequency="0.01 0.01" numOctaves="2" seed="92" result="noise"/>
-      <feGaussianBlur in="noise" stdDeviation="2" result="blurred"/>
-      <feDisplacementMap in="SourceGraphic" in2="blurred" scale="55" xChannelSelector="R" yChannelSelector="G"/>
-    </filter>
-  </svg>
-
-  <div id="chat-bubble" aria-label="Ouvrir le chat" role="button">
+  <div id="cg-bubble" aria-label="Ouvrir le chat" role="button">
     <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
   </div>
 
-  <div id="chat-panel" role="dialog" aria-label="Chat avec l'assistant de Pol">
-    <div id="chat-header">
-      <div>
+  <div id="cg-panel" role="dialog" aria-label="Chat avec l'assistant de Pol">
+    <div id="cg-header">
+      <div class="cg-titles">
         <h3>Assistant de Pol</h3>
-        <span>Posez vos questions sur mon parcours</span>
+        <small>Posez vos questions sur mon parcours</small>
       </div>
-      <button id="chat-close" aria-label="Fermer">&times;</button>
+      <button id="cg-close" aria-label="Fermer">&times;</button>
     </div>
-    <div id="chat-messages"></div>
-    <div id="chat-input-bar">
-      <input id="chat-input" type="text" maxlength="500"
-             placeholder="Votre question..." autocomplete="off">
-      <button id="chat-send">Envoyer</button>
+    <div id="cg-messages"></div>
+    <div id="cg-inputbar">
+      <input id="cg-input" type="text" maxlength="500" placeholder="Votre question..." autocomplete="off">
+      <button id="cg-send">Envoyer</button>
     </div>
   </div>
 
@@ -179,27 +184,25 @@
     greeting: "Bonjour ! 👋 Je suis l'assistant de Pol. Posez-moi vos questions sur son parcours, ses projets ou le poste qu'il recherche.",
   };
 
-  const bubble   = document.getElementById("chat-bubble");
-  const panel    = document.getElementById("chat-panel");
-  const closeBtn = document.getElementById("chat-close");
-  const messages = document.getElementById("chat-messages");
-  const input    = document.getElementById("chat-input");
-  const sendBtn  = document.getElementById("chat-send");
+  const bubble   = document.getElementById("cg-bubble");
+  const panel    = document.getElementById("cg-panel");
+  const closeBtn = document.getElementById("cg-close");
+  const messages = document.getElementById("cg-messages");
+  const input    = document.getElementById("cg-input");
+  const sendBtn  = document.getElementById("cg-send");
   let greeted = false;
 
-  // Anti-"stacking context" : on rattache le widget directement au <body> pour
-  // qu'aucun parent Divi (avec transform/filter) ne bloque son affichage par-dessus.
   document.body.appendChild(bubble);
   document.body.appendChild(panel);
 
   bubble.addEventListener("click", () => {
-    panel.classList.add("open");
+    panel.classList.add("cg-open");
     bubble.style.display = "none";
     input.focus();
     if (!greeted) { addMessage("bot", CONFIG.greeting); greeted = true; }
   });
   closeBtn.addEventListener("click", () => {
-    panel.classList.remove("open");
+    panel.classList.remove("cg-open");
     bubble.style.display = "flex";
   });
 
@@ -222,7 +225,7 @@
   }
   function addMessage(role, text) {
     const div = document.createElement("div");
-    div.className = "msg " + role;
+    div.className = "cg-msg " + (role === "bot" ? "cg-bot" : "cg-user");
     div.innerHTML = role === "bot" ? format(text) : escapeHtml(text);
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
@@ -230,7 +233,7 @@
   }
   function showTyping() {
     const div = document.createElement("div");
-    div.className = "msg bot typing";
+    div.className = "cg-msg cg-bot cg-typing";
     div.innerHTML = "<span></span><span></span><span></span>";
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "widget-preview",
+      "runtimeExecutable": "php",
+      "runtimeArgs": ["-S", "127.0.0.1:8899", "-t", "/Users/pol/Documents/VSCode/rag"],
+      "port": 8899
+    }
+  ]
+}
