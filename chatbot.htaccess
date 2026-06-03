@@ -1,0 +1,18 @@
+# A UPLOADER dans /chatbot/ sous le nom EXACT ".htaccess"
+# (renomme "chatbot.htaccess" -> ".htaccess" sur le serveur).
+#
+# Role : desactiver la compression gzip pour chat.php uniquement.
+# La compression (mod_deflate) bufferise la sortie pour la compresser, ce qui
+# CASSE le streaming SSE (la reponse n'arrive pas au fil de l'eau). On la coupe
+# donc pour ce seul fichier ; le reste du site garde la compression.
+
+<Files "chat.php">
+  <IfModule mod_deflate.c>
+    SetEnv no-gzip 1
+    SetEnv dont-vary 1
+  </IfModule>
+  # Apache 2.4 : forme alternative si SetEnv ne suffit pas.
+  <IfModule mod_headers.c>
+    Header unset Content-Encoding
+  </IfModule>
+</Files>

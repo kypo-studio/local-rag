@@ -520,6 +520,12 @@ foreach ($historique as $msg) {
 $messages[] = ["role" => "user", "content" => $message_utilisateur];
 
 // --- STREAMING : on bascule la reponse HTTP en flux texte (plus de JSON ici).
+// IMPORTANT : la compression gzip (mod_deflate) bufferise la sortie pour la
+// compresser -> elle CASSE le streaming. On la desactive pour cette reponse.
+if (function_exists("apache_setenv")) { @apache_setenv("no-gzip", "1"); }
+@ini_set("zlib.output_compression", "0");
+header("Content-Encoding: identity"); // demande explicitement "pas de compression"
+
 // On desactive tout buffering pour que les fragments partent immediatement.
 header("Content-Type: text/plain; charset=utf-8");
 header("X-Accel-Buffering: no"); // demande a nginx de ne pas bufferiser

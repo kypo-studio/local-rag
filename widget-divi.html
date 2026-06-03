@@ -304,6 +304,12 @@
           div.innerHTML = format(reponse);          // re-rendu progressif (liens, sauts de ligne)
           messages.scrollTop = messages.scrollHeight;
         }
+        // Repli : si le flux n'a rien renvoye (ex. buffering serveur), on evite
+        // une bulle vide en affichant un message clair.
+        if (!reponse.trim()) {
+          reponse = "Désolé, une erreur est survenue. Réessayez plus tard.";
+          div.innerHTML = format(reponse);
+        }
       }
       // On enregistre l'echange dans l'historique, puis on tronque (fenetre glissante).
       historique.push({ role: "user", content: question });
