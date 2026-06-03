@@ -211,6 +211,100 @@ function cosinus(array $a, array $b): float {
     return $produit / (sqrt($norme_a) * sqrt($norme_b));
 }
 
+/**
+ * Decoupe un texte en "tokens" (mots normalises) pour la recherche par mots-cles.
+ * On passe en minuscules, on retire les accents et la ponctuation, et on jette
+ * les mots-outils (le, la, de...) et les mots trop courts, peu discriminants.
+ */
+function tokeniser(string $texte): array {
+    $texte = mb_strtolower($texte, "UTF-8");
+    // Translitteration des accents (e accent -> e) pour matcher "experience" et "expérience".
+    $texte = iconv("UTF-8", "ASCII//TRANSLIT//IGNORE", $texte) ?: $texte;
+    // Tout ce qui n'est pas lettre/chiffre devient un separateur.
+    $mots = preg_split('/[^a-z0-9]+/', $texte, -1, PREG_SPLIT_NO_EMPTY);
+    $stopwords = [
+        "le","la","les","un","une","des","de","du","et","ou","a","au","aux","en",
+        "dans","sur","pour","par","avec","sans","que","qui","quoi","dont","est",
+        "es","suis","sont","mon","ma","mes","ton","ta","tes","son","sa","ses",
+        "ce","cet","cette","ces","tu","je","il","elle","on","nous","vous","se",
+        "ne","pas","plus","tres","tu","quel","quels","quelle","quelles","comment",
+    ];
+    return array_values(array_filter($mots, function ($m) use ($stopwords) {
+        return mb_strlen($m) > 2 && !in_array($m, $stopwords, true);
+    }));
+}
+
+/**
+ * Score BM25 de chaque chunk pour les tokens de la question.
+ * Retourne un tableau [index_chunk => score]. Plus le score est haut, plus le
+ * chunk contient les mots (rares) de la question.
+ */
+function bm25_scores(array $tokens_question, array $index): array {
+    $k1 = 1.5; $b = 0.75; // parametres classiques de BM25
+    $N = count($index);
+
+    // Pre-tokenisation des chunks + longueurs.
+    $docs = [];
+    $longueurs = [];
+    $somme_long = 0;
+    foreach ($index as $i => $e) {
+        $toks = tokeniser($e["text"]);
+        $docs[$i] = array_count_values($toks); // {mot => nb d'occurrences}
+        $longueurs[$i] = count($toks);
+        $somme_long += $longueurs[$i];
+    }
+    $long_moyenne = $N > 0 ? $somme_long / $N : 0;
+
+    // IDF : combien de chunks contiennent chaque mot de la question ?
+    $idf = [];
+    foreach (array_unique($tokens_question) as $mot) {
+        $nb_docs_avec_mot = 0;
+        foreach ($docs as $compte) {
+            if (isset($compte[$mot])) $nb_docs_avec_mot++;
+        }
+        // Formule IDF de BM25 : un mot rare pese plus lourd.
+        $idf[$mot] = log(1 + ($N - $nb_docs_avec_mot + 0.5) / ($nb_docs_avec_mot + 0.5));
+    }
+
+    $scores = [];
+    foreach ($docs as $i => $compte) {
+        $score = 0.0;
+        foreach (array_unique($tokens_question) as $mot) {
+            $f = $compte[$mot] ?? 0;            // frequence du mot dans ce chunk
+            if ($f === 0) continue;
+            $norm = 1 - $b + $b * ($longueurs[$i] / max($long_moyenne, 1));
+            // Saturation (k1) + normalisation par longueur (b) + ponderation par raretE (idf).
+            $score += $idf[$mot] * ($f * ($k1 + 1)) / ($f + $k1 * $norm);
+        }
+        $scores[$i] = $score;
+    }
+    return $scores;
+}
+
+/**
+ * Fusion des deux classements (cosinus + BM25) par Reciprocal Rank Fusion.
+ * On combine les RANGS, pas les scores (echelles incomparables). Un chunk bien
+ * classe par l'une OU l'autre methode remonte. Retourne [index => score_rrf].
+ */
+function rrf_fusion(array $scores_cos, array $scores_bm25, int $k = 60): array {
+    // Classement par cosinus (rang 1 = meilleur).
+    arsort($scores_cos);
+    $rang_cos = [];
+    $r = 1; foreach ($scores_cos as $i => $_) { $rang_cos[$i] = $r++; }
+
+    // Classement par BM25.
+    arsort($scores_bm25);
+    $rang_bm25 = [];
+    $r = 1; foreach ($scores_bm25 as $i => $_) { $rang_bm25[$i] = $r++; }
+
+    $rrf = [];
+    foreach (array_keys($scores_cos) as $i) {
+        $rrf[$i] = 1 / ($k + $rang_cos[$i]) + 1 / ($k + ($rang_bm25[$i] ?? PHP_INT_MAX));
+    }
+    arsort($rrf);
+    return $rrf;
+}
+
 /** Appelle l'API Mistral pour vectoriser la question. */
 function embed_question(string $question, string $cle): array {
     $ch = curl_init("https://api.mistral.ai/v1/embeddings");
@@ -232,13 +326,20 @@ function embed_question(string $question, string $cle): array {
 // On vectorise la question.
 $vecteur_question = embed_question($question, $cle_mistral);
 
-// On charge l'index pre-calcule et on score chaque chunk.
+// On charge l'index pre-calcule.
 $index = json_decode(file_get_contents(__DIR__ . "/embeddings.json"), true);
-$scores = [];
+
+// --- Recherche HYBRIDE : on score chaque chunk de deux façons...
+// 1) Semantique : similarite cosinus question <-> chunk (capte le SENS).
+$scores_cos = [];
 foreach ($index as $i => $entree_index) {
-    $scores[$i] = cosinus($vecteur_question, $entree_index["embedding"]);
+    $scores_cos[$i] = cosinus($vecteur_question, $entree_index["embedding"]);
 }
-arsort($scores); // tri decroissant en gardant les cles (index)
+// 2) Mots-cles : BM25 question <-> chunk (capte les TERMES EXACTS, noms propres).
+$scores_bm25 = bm25_scores(tokeniser($question), $index);
+
+// ...puis on FUSIONNE les deux classements (Reciprocal Rank Fusion).
+$scores = rrf_fusion($scores_cos, $scores_bm25);
 
 // On recupere le texte des NB_CHUNKS meilleurs.
 $meilleurs = array_slice($scores, 0, NB_CHUNKS, true);
