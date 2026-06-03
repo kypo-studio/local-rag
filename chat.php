@@ -20,7 +20,11 @@ const MODELE_EMBEDDING = "mistral-embed";
 // Modele de generation (gratuit sur l'offre Mistral).
 const MODELE_GENERATION = "mistral-small-latest";
 
-const NB_CHUNKS = 4;        // top-k : nb de chunks injectes dans le prompt
+const NB_CHUNKS = 4;        // top-k final : nb de chunks injectes dans le prompt
+const NB_CANDIDATS = 10;    // reranking : nb de candidats recuperes avant re-tri fin
+const LAMBDA_MMR = 0.8;     // reranking : equilibre pertinence (1) <-> diversite (0)
+                            // 0.8 = on favorise la pertinence (corpus petit/focalise),
+                            // tout en diversifiant les questions larges.
 const MAX_TOKENS = 400;     // garde-fou : plafonne la longueur (et le cout) de la reponse
 const MAX_LONGUEUR_QUESTION = 500; // garde-fou : rejette les messages trop longs
 const MAX_HISTORIQUE = 6;   // memoire : nb max de messages d'historique gardes (fenetre glissante)
@@ -305,6 +309,47 @@ function rrf_fusion(array $scores_cos, array $scores_bm25, int $k = 60): array {
     return $rrf;
 }
 
+/**
+ * Reranking par MMR (Maximal Marginal Relevance).
+ * Parmi une liste de candidats, selectionne $k chunks en equilibrant :
+ *   - la PERTINENCE par rapport a la question (cosinus question<->chunk)
+ *   - la DIVERSITE : on penalise un chunk trop similaire a ceux deja choisis.
+ * Evite de renvoyer plusieurs chunks quasi identiques. Retourne une liste d'index.
+ *
+ * @param int[]   $candidats      index des chunks candidats (deja pre-tries)
+ * @param float[] $pertinence     [index => score de pertinence question<->chunk]
+ * @param array   $index          l'index complet (pour acceder aux embeddings)
+ */
+function mmr_rerank(array $candidats, array $pertinence, array $index, int $k, float $lambda): array {
+    $selection = [];
+    $restants = $candidats;
+
+    while (count($selection) < $k && $restants) {
+        $meilleur = null;
+        $meilleur_score = -INF;
+
+        foreach ($restants as $i) {
+            // Redondance = similarite max avec un chunk DEJA selectionne.
+            $redondance = 0.0;
+            foreach ($selection as $j) {
+                $sim = cosinus($index[$i]["embedding"], $index[$j]["embedding"]);
+                if ($sim > $redondance) $redondance = $sim;
+            }
+            // Score MMR : pertinence ponderee - redondance ponderee.
+            $score = $lambda * $pertinence[$i] - (1 - $lambda) * $redondance;
+            if ($score > $meilleur_score) {
+                $meilleur_score = $score;
+                $meilleur = $i;
+            }
+        }
+
+        $selection[] = $meilleur;
+        // On retire le chunk choisi des restants.
+        $restants = array_values(array_filter($restants, fn($x) => $x !== $meilleur));
+    }
+    return $selection;
+}
+
 /** Appelle l'API Mistral pour vectoriser la question. */
 function embed_question(string $question, string $cle): array {
     $ch = curl_init("https://api.mistral.ai/v1/embeddings");
@@ -391,10 +436,15 @@ $scores_bm25 = bm25_scores(tokeniser($question_recherche), $index);
 // ...puis on FUSIONNE les deux classements (Reciprocal Rank Fusion).
 $scores = rrf_fusion($scores_cos, $scores_bm25);
 
-// On recupere le texte des NB_CHUNKS meilleurs.
-$meilleurs = array_slice($scores, 0, NB_CHUNKS, true);
+// --- RERANKING en deux temps :
+// 1) On recupere LARGE : les NB_CANDIDATS meilleurs de la fusion (filet large).
+$candidats = array_keys(array_slice($scores, 0, NB_CANDIDATS, true));
+// 2) On re-trie FIN avec MMR : garde NB_CHUNKS chunks pertinents ET diversifies
+//    (pertinence = cosinus question<->chunk, deja calcule dans $scores_cos).
+$meilleurs = mmr_rerank($candidats, $scores_cos, $index, NB_CHUNKS, LAMBDA_MMR);
+
 $contexte = "";
-foreach ($meilleurs as $i => $score) {
+foreach ($meilleurs as $i) {
     $contexte .= "- " . $index[$i]["text"] . "\n";
 }
 
