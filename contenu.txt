@@ -61,7 +61,6 @@ Je developpe egalement un chatbot RAG (Retrieval-Augmented Generation) integre a
 
 Depuis 2024, je suis en alternance chez Eureden, a Landerneau, dans le cadre de mon Master en intelligence artificielle. J'y travaille sur des projets de data science et de machine learning de bout en bout : modeles predictifs, traitement d'images satellites et pipelines data en production.
 
-De 2023 a 2024, j'ai effectue une alternance de developpeur full stack chez Eureden, a Landerneau. Ma mission principale etait d'optimiser des interfaces web et de corriger des bugs pour ameliorer l'experience utilisateur et la stabilite de l'application.
 
 # ---------------------------------------------------------------------
 # 7. FACON DE TRAVAILLER / SOFT SKILLS
