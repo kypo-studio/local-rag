@@ -411,11 +411,17 @@ function mmr_rerank(array $candidats, array $pertinence, array $index, int $k, f
     return $selection;
 }
 
-/** Appelle l'API Mistral pour vectoriser la question. */
+/**
+ * Appelle l'API Mistral pour vectoriser la question.
+ * Garde-fous : timeouts (un upstream lent ne bloque pas le worker) + verification
+ * de la reponse. Retourne [] en cas d'echec (le caller renvoie un message propre).
+ */
 function embed_question(string $question, string $cle): array {
     $ch = curl_init("https://api.mistral.ai/v1/embeddings");
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 5,   // garde-fou : abandon si pas de connexion en 5 s
+        CURLOPT_TIMEOUT => 15,         // garde-fou : abandon si l'appel depasse 15 s
         CURLOPT_HTTPHEADER => [
             "Authorization: Bearer $cle",
             "Content-Type: application/json",
@@ -426,7 +432,11 @@ function embed_question(string $question, string $cle): array {
         ]),
     ]);
     $reponse = curl_exec($ch);
-    return json_decode($reponse, true)["data"][0]["embedding"];
+    if ($reponse === false) return [];                  // timeout / erreur reseau
+    $data = json_decode($reponse, true);
+    // Structure attendue : data[0].embedding (tableau de floats). Sinon -> echec.
+    $embedding = $data["data"][0]["embedding"] ?? null;
+    return is_array($embedding) ? $embedding : [];      // erreur API (cle, quota, 5xx...)
 }
 
 /**
@@ -453,6 +463,8 @@ function reformuler_question(string $question, array $historique, string $cle): 
     $ch = curl_init("https://api.mistral.ai/v1/chat/completions");
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 5,   // garde-fou : connexion plafonnee a 5 s
+        CURLOPT_TIMEOUT => 15,         // garde-fou : appel plafonne a 15 s
         CURLOPT_HTTPHEADER => [
             "Authorization: Bearer $cle",
             "Content-Type: application/json",
@@ -481,6 +493,16 @@ $question_recherche = $historique
 
 // On vectorise la question de RECHERCHE (reformulee le cas echeant).
 $vecteur_question = embed_question($question_recherche, $cle_mistral);
+
+// Garde-fou : si l'embedding a echoue (timeout, cle invalide, quota Mistral...),
+// on s'arrete proprement AVANT le streaming (la reponse est encore en JSON ici).
+if (!$vecteur_question) {
+    http_response_code(502);
+    echo json_encode([
+        "answer" => "Je n'arrive pas a joindre mon moteur de recherche pour le moment. Reessaie dans un instant, ou ecris directement a Pol : contact@kypolab.com."
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // On charge l'index pre-calcule.
 $index = json_decode(file_get_contents(__DIR__ . "/embeddings.json"), true);
@@ -548,6 +570,12 @@ $texte_reponse = "";   // reponse complete (pour log/diagnostic eventuel)
 
 $ch = curl_init("https://api.mistral.ai/v1/chat/completions");
 curl_setopt_array($ch, [
+    CURLOPT_CONNECTTIMEOUT => 5,    // garde-fou : connexion plafonnee a 5 s
+    CURLOPT_TIMEOUT => 60,          // garde-fou : duree totale du flux plafonnee a 60 s
+    // Garde-fou anti-blocage : on abandonne si le flux stagne (< 1 o/s pendant 20 s)
+    // -> protege le worker PHP d'un upstream gele en cours de streaming.
+    CURLOPT_LOW_SPEED_LIMIT => 1,
+    CURLOPT_LOW_SPEED_TIME => 20,
     CURLOPT_HTTPHEADER => [
         "Authorization: Bearer $cle_mistral",
         "Content-Type: application/json",
