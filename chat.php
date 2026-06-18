@@ -172,10 +172,70 @@ function est_injection(string $texte): bool {
     return false;
 }
 
+/**
+ * Detection heuristique des DEMANDES DE PRODUCTION hors profil (couche 2).
+ * Vise les messages ou le visiteur demande au bot de FABRIQUER quelque chose
+ * (ecrire du code, resoudre un exercice, traduire...) plutot que de parler de
+ * Pol. Calibre pour la PRECISION : on ne matche que des tournures de REQUETE
+ * ("ecris une fonction", "code-moi"), pas les questions legitimes sur le profil
+ * ("as-tu code en Python ?", "quelles technos maitrise-t-il ?").
+ */
+function est_demande_production(string $texte): bool {
+    // Normalisation deterministe (independante de la locale/iconv du serveur) :
+    // minuscules + accents retires via table explicite + apostrophe typographique.
+    $t = mb_strtolower($texte, "UTF-8");
+    $t = strtr($t, [
+        "à"=>"a","á"=>"a","â"=>"a","ã"=>"a","ä"=>"a","å"=>"a","ç"=>"c",
+        "è"=>"e","é"=>"e","ê"=>"e","ë"=>"e","ì"=>"i","í"=>"i","î"=>"i","ï"=>"i",
+        "ñ"=>"n","ò"=>"o","ó"=>"o","ô"=>"o","õ"=>"o","ö"=>"o","ù"=>"u","ú"=>"u",
+        "û"=>"u","ü"=>"u","ý"=>"y","ÿ"=>"y","œ"=>"oe","æ"=>"ae","’"=>"'",
+    ]);
+
+    // Tournures de requete a fort signal (verbe de production + livrable).
+    $motifs = [
+        // --- Code ---
+        "ecris-moi", "ecris moi", "ecris un code", "ecris du code", "ecris le code",
+        "ecris une fonction", "ecris un script", "ecris un programme", "ecris une classe",
+        "ecris une requete", "ecris une regex",
+        "genere-moi", "genere moi", "genere du code", "genere un code", "genere un script",
+        "genere une fonction", "genere une requete",
+        "code-moi", "code moi", "programme-moi", "programme moi",
+        "implemente-moi", "implemente moi", "implemente une", "implemente la fonction",
+        "donne-moi le code", "donne moi le code", "donne-moi un code", "donne moi un code",
+        "donne-moi un exemple de code", "donne moi un exemple de code",
+        "montre-moi le code", "montre moi le code", "montre-moi un exemple de code",
+        "fais-moi un script", "fais moi un script", "fais-moi une fonction", "fais moi une fonction",
+        "peux-tu coder", "peux tu coder", "tu peux coder", "pourrais-tu coder", "tu peux me coder",
+        "corrige ce code", "corrige mon code", "corrige ce script",
+        "debugge", "deboggue", "debug ce code",
+        "ecris-moi une fonction", "ecris moi une fonction",
+        // --- Exercices / devoirs / autres taches generalistes ---
+        "resous cet exercice", "resous l'exercice", "resous ce probleme",
+        "fais mes devoirs", "fait mes devoirs", "fais mon devoir",
+        "traduis ce", "traduis le texte", "traduis-moi", "traduis moi",
+        "redige-moi", "redige moi", "ecris-moi un poeme", "ecris moi un poeme",
+        "ecris-moi un email", "ecris moi un email", "ecris-moi une lettre", "ecris moi une lettre",
+    ];
+    foreach ($motifs as $m) {
+        if (strpos($t, $m) !== false) return true;
+    }
+    return false;
+}
+
 // Garde-fou anti-injection (couche 1) : on bloque AVANT tout appel API (cout zero).
 if (est_injection($question)) {
     echo json_encode([
         "answer" => "Je suis l'assistant de Pol et je reste concentre sur son parcours, ses projets et ses competences. Pose-moi une question la-dessus !"
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// Garde-fou perimetre (couche 2) : demande de production hors profil (code,
+// exercice, traduction...). Bloque AVANT tout appel API (cout zero) ; le system
+// prompt sert de filet pour les formulations non couvertes ici.
+if (est_demande_production($question)) {
+    echo json_encode([
+        "answer" => "Je suis seulement l'assistant de Pol : je ne genere pas de code, d'exercices ou de textes. En revanche je peux te parler de la façon dont Pol code (ses outils, ses projets, ses competences). Que veux-tu savoir sur son parcours ?"
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
